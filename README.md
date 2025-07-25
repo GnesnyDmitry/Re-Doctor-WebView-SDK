@@ -18,10 +18,10 @@ It works with: `https://bp2.re.doctor/`
 
 ## Project Structure
 
-├── MainActivity.kt
-├── WebViewScreen.kt
-├── JSBridge.kt
-└── CameraPermission.kt
+ -  MainActivity.kt
+ -  WebViewScreen.kt
+ -  JSBridge.kt
+ -  CameraPermission.kt
 
 ---
 
@@ -29,7 +29,7 @@ It works with: `https://bp2.re.doctor/`
 
 A bridge between JavaScript and Android (WebView → Kotlin):
 
-```
+```kotlin
 class JSBridge(
     private val onData: (String) -> Unit,
 ) {
@@ -41,26 +41,25 @@ class JSBridge(
 }
 ```
 Notes on **@JavascriptInterface**
-Required for all methods called from JS.
 
-Without it, WebView ignores the method.
-
-Only safe when used with trusted websites.
+ - Required for all methods called from JS.
+ - Without it, WebView ignores the method.
+ - Only safe when used with trusted websites.
 
 How it works
 1. Attach this class to the WebView:
 
-```
+```kotlin
 webView.addJavascriptInterface(JSBridge(...), "AndroidBridge")
 ```
 2. Inside the webpage, JavaScript can call:
 
-```
+```kotlin
 AndroidBridge.sendData(JSON.stringify({ bpm: 72, spo2: 98 }));
 ```
 3. This triggers the Android method:
 
-```
+```kotlin
 fun sendData(json: String)
 ```
 The JSON string is passed to the external onData(...) callback, where you can:
@@ -75,7 +74,7 @@ The JSON string is passed to the external onData(...) callback, where you can:
 ## WebViewScreen
 `RequestCameraPermission` - Android camera permission request
 
-`WebViewContent` — WebView interface implementation with full logic
+`WebViewContent` - WebView interface implementation with full logic
 
 ```koltin
 settings.javaScriptEnabled = true
@@ -87,12 +86,12 @@ settings.domStorageEnabled = true
 
 ---
 
-### Permissions for WebView
+## Permissions for WebView
 WebView uses **WebChromeClient** to handle permissions for camera and other multimedia features.
 
 The **onPermissionRequest method** automatically grants access to requested resources, which is essential for WebRTC functionality (e.g., camera for video analysis):
 
-```
+```kotlin
 webChromeClient = object : WebChromeClient() {
     override fun onPermissionRequest(request: PermissionRequest?) {
         request?.grant(request.resources)
@@ -106,25 +105,25 @@ webChromeClient = object : WebChromeClient() {
 
 ---
 
-### Adding the JavascriptInterface named AndroidBridge
+## Adding the JavascriptInterface named AndroidBridge (WebView → Kotlin)
 This enables passing data from **localStorage** in the WebView to Android and saving it:
 
-```
+```kotlin
 addJavascriptInterface(
     JSBridge(
         onData = { receivedData.value = it },
     ), "AndroidBridge"
 )
 ```
-Automatic injection of userData into **localStorage** on page start
+## Automatic injection of userData into **localStorage** on page start
 You must save data into **localStorage** inside the **onPageStarted** callback so that it’s available before page rendering begins.
 If you set data later (e.g., in **onPageFinished**), the web page might require a reload to show the injected values.
 
 `Use view?.evaluateJavascript(userData, null)` - to execute JS code inside the WebView:
 
-```
-override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-    val userData = """
+```kotlin
+fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+ val userData = """
         localStorage.setItem("userData", JSON.stringify({
             height: 1.8,
             weight: 75,
@@ -134,18 +133,18 @@ override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         }));
     """.trimIndent()
 
-    view?.evaluateJavascript(userData, null)
+ view?.evaluateJavascript(userData, null)
 }
 ```
 
 ---
 
-### Retrieving data from JS (redoctor/vitals-results) on page exit
-Use `BackHandler` to handle the system back button.
+## Retrieving data from JS (redoctor/vitals-results) on page exit
+`BackHandler` - handler for system back button press.
 `getVitalsResults` is a JavaScript snippet for retrieving data from localStorage.
-Use `webView.evaluateJavascript` to execute JavaScript code within the WebView.
+Use `webView.evaluateJavascript` to run JavaScript code inside the WebView.
 
-```
+```kotlin
 BackHandler {
     val getVitalsResults = """
         (function() {
