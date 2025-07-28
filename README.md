@@ -106,7 +106,11 @@ webChromeClient = object : WebChromeClient() {
 ---
 
 ## Adding the JavascriptInterface named AndroidBridge (WebView → Kotlin)
-This enables passing data from **localStorage** in the WebView to Android and saving it:
+It allows transferring data from localStorage in JavaScript to Android, where it is stored.
+
+1. *JSBridge* is passed into the WebView.
+2. After executing the JavaScript code, the *receivedData* state is updated.
+*receivedData* is a *MutableState<String>* stored in Compose.
 
 ```kotlin
 addJavascriptInterface(
@@ -140,9 +144,12 @@ fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
 ---
 
 ## Retrieving data from JS (redoctor/vitals-results) on page exit
-`BackHandler` - handler for system back button press.
-`getVitalsResults` is a JavaScript snippet for retrieving data from localStorage.
-Use `webView.evaluateJavascript` to run JavaScript code inside the WebView.
+ - `BackHandler` - handler for system back button press.
+ - `getVitalsResults` is a JavaScript snippet for retrieving data from localStorage.
+ - Use `webView.evaluateJavascript` to run JavaScript code inside the WebView.
+
+1. When the back button is pressed, the following JavaScript is executed in the WebView:
+   It reads data from *localStorage* and calls *AndroidBridge.sendData(...)*.
 
 ```kotlin
 BackHandler {
@@ -156,8 +163,33 @@ BackHandler {
     """.trimIndent()
 
     webView.evaluateJavascript(getVitalsResults, null)
-    onBackClick()
+    waitingForData = true
 }
 ```
 
+2. The waitingForData flag is set to true, indicating that data is expected from JavaScript.
+
+3. The data listener is implemented using LaunchedEffect, which watches changes to *waitingForData* and *receivedData.value*.
+When data is received and not blank, it triggers parsing:
+
+```kotlin
+LaunchedEffect(waitingForData, receivedData.value) {
+    if (waitingForData && receivedData.value.isNotBlank()) {
+        ...
+    }
+}
+```
+
+4. The received JSON string is parsed into a *List<VitalsResult>*:
+
+```kotlin
+val type = object : TypeToken<List<VitalsResult>>() {}.type
+val vitalsList = runCatching {
+    Gson().fromJson<List<VitalsResult>>(receivedData.value, type)
+}.getOrDefault(emptyList())
+```
+
+5. Then *onBackClick(vitalsList)* is called to pass the parsed result back to the previous screen.
+
+6. Finally, the *waitingForData* flag is reset to *false*.
 ---
